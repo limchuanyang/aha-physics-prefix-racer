@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Prefix Turbo Racer - AHA! Physics</title>
+<style>
+html,body{margin:0;height:100%;background:#07031a;overflow:hidden;font-family:"Courier New",monospace;font-weight:bold;color:#fff7d6;touch-action:manipulation;user-select:none}
+#w{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#g{position:relative;width:min(100vw,66.66vh);height:min(150vw,100vh);font-size:min(3.33vw,2.22vh);background:#0b0620}
+#c{width:100%;height:100%;image-rendering:pixelated;display:block}
+#crt{position:absolute;inset:0;pointer-events:none;display:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 1px,transparent 1px 3px)}
+#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5em;padding:1em;box-sizing:border-box;text-align:center;background:rgba(11,6,32,.95);overflow:auto}
+#ov h1{margin:0;font-size:2.2em;color:#00f0ff;text-shadow:3px 3px #ff2bd6;line-height:1.1}
+#ov h2{margin:0;font-size:1.5em;color:#ffd400}
+#ov p{margin:.2em 0;font-size:1.05em;line-height:1.35;max-width:26em}
+.br{font-size:1.6em!important;color:#ff2bd6;letter-spacing:.1em}
+.mo{color:#00f0ff;font-style:italic}
+.big{font-size:2.6em!important;color:#ffd400;line-height:1.1;text-shadow:3px 3px #ff2bd6}
+.b{font:inherit;font-size:1.1em;background:#ffd400;color:#1a0b3a;border:3px solid #fff7d6;padding:.45em 1em;cursor:pointer;box-shadow:4px 4px 0 #ff2bd6;min-width:11em}
+.b:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #ff2bd6}.b.s{min-width:0;font-size:.9em;padding:.3em .6em}
+.b.r{background:#00f0ff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:.5em}
+table{border-collapse:collapse;font-size:1em}td,th{border:2px solid #ff2bd6;padding:.15em .6em}
+#tc{position:absolute;left:0;right:0;bottom:.6em;display:none;justify-content:space-between;align-items:flex-end;padding:0 .6em;pointer-events:none}
+#tc button{pointer-events:auto;width:5.5em;height:5.5em;font:inherit;font-size:2em;background:rgba(0,240,255,.35);color:#fff;border:3px solid #00f0ff}
+#tm{display:flex;flex-direction:column;gap:.3em;pointer-events:auto}
+</style></head><body>
+<div id="w"><div id="g"><canvas id="c"></canvas><div id="crt"></div>
+<div id="tc"><button id="bl">◀</button><div id="tm"><button class="b s" style="width:auto;height:auto;font-size:1em;background:#ffd400;color:#1a0b3a" onclick="pause()">PAUSE</button><button class="b s r" style="width:auto;height:auto;font-size:1em;color:#1a0b3a" onclick="menu()">MENU</button></div><button id="br">▶</button></div>
+<div id="ov"></div></div></div>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d'),W=360,H=540,$=id=>document.getElementById(id);
+C.width=W;C.height=H;
+const P=[['pico','p',-12],['nano','n',-9],['micro','μ',-6],['milli','m',-3],['centi','c',-2],['deci','d',-1],['kilo','k',3],['mega','M',6],['giga','G',9],['tera','T',12]];
+const E=P.map(p=>p[2]);
+const WN=[['Pico Planet',-12],['Nano City',-9],['Micro Tunnel',-6],['Milli Highway',-3],['Base Realm',0],['Kilo Valley',3],['Mega Reactor',6],['Giga Skyway',9],['Tera Galaxy',12]];
+const GN=['Pico','Nano','Micro','Milli','Kilo','Mega','Giga','Tera'];
+const GC=['#1b0f3f','#0f2a5c','#0b4a4a','#1f4d1f','#5a3a0a','#5a1a2a','#3a1a6a','#6a1a5a'];
+const SUP={'-':'⁻','0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+const sup=n=>'10'+String(n).split('').map(c=>SUP[c]).join('');
+const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1)),pick=a=>a[R(0,a.length-1)];
+const shuf=a=>{for(let i=a.length-1;i>0;i--){let j=R(0,i);[a[i],a[j]]=[a[j],a[i]]}return a};
+const MOTTO='"Not by sight, but by INSIGHT."';
+const ACH={rookie:'Prefix Rookie',nano:'Nano Navigator',micro:'Micro Master',crusher:'Conversion Crusher',king:'Quantity King',guardian:'Dimension Guardian',legend:'Insight Legend'};
+let SV={ach:{},maxW:0};try{SV=Object.assign(SV,JSON.parse(localStorage.getItem('ptr')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('ptr',JSON.stringify(SV))}catch(e){}};
+let S={score:0,cc:0},st='menu',last=0,AC=null,crtOn=false;
+
+/* ---------- sound ---------- */
+function beep(f,d,ty,v,sl){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=ty||'square';o.frequency.value=f;if(sl)o.frequency.exponentialRampToValueAtTime(sl,AC.currentTime+d);g.gain.value=v||.05;g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+const sfx={ok:()=>{beep(660,.1);setTimeout(()=>beep(990,.15),90)},bad:()=>beep(180,.35,'sawtooth',.07,60),pu:()=>beep(400,.25,'triangle',.07,1200),win:()=>[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.2),i*120))};
+
+/* ---------- questions ---------- */
+function mk(t,w){
+  const foc=[0,1,2,3,null,6,7,8,9][w],fp=()=>(foc!=null&&Math.random()<.6)?P[foc]:pick(P);
+  let o,ok,q,why,stp='';
+  if(t==1||t==3){let p=fp(),a=shuf([p,...shuf(P.filter(x=>x!==p)).slice(0,2)]);o=a.map(x=>x[0]);ok=a.indexOf(p);
+    q=t==1?'Collect: '+p[0]:'Match '+sup(p[2]);why=p[0]+' = '+sup(p[2])+' ('+p[1]+')'}
+  else if(t==2){let i=R(2,8),a=E[i],big=pick(E.slice(i+1)),x=shuf([big,...shuf(E.slice(0,i)).slice(0,2)]);
+    o=x.map(sup);ok=x.indexOf(big);q='Larger than '+sup(a)+'?';why=sup(big)+' is bigger than '+sup(a)}
+  else if(t==4){let p=fp(),b=pick(['m','s','g','W']),es=shuf(E.filter(e=>e!==p[2])).slice(0,2);
+    if(E.includes(-p[2]))es[0]=-p[2];let x=shuf([p[2],...es]);o=x.map(e=>sup(e)+' '+b);ok=x.indexOf(p[2]);
+    q='1 '+p[1]+b+' = ?';why=p[1]+' = '+sup(p[2])}
+  else{let p=(foc!=null&&Math.random()<.5)?P[foc]:pick(P.filter(x=>Math.abs(x[2])<=6)),b=pick(['m','s','g']),
+    v=pick([2500,5,4800,350,72,0.8,15,640,9000,12]),f=n=>String(parseFloat(n.toPrecision(9))),c=v*Math.pow(10,p[2]),set=[f(c)];
+    [v*Math.pow(10,-p[2]),v*Math.pow(10,p[2]+(p[2]>0?-1:1)),v*Math.pow(10,p[2]*2)].forEach(z=>{let s=f(z);if(!set.includes(s))set.push(s)});
+    while(set.length<3){let s=f(c*pick([10,100,.1,.01]));if(!set.includes(s))set.push(s)}
+    set=set.slice(0,3);let a=shuf(set.slice());o=a.map(x=>x+' '+b);ok=a.indexOf(f(c));
+    q=v+' '+p[1]+b+' → '+b+'?';stp='Step 1: '+p[1]+' = '+sup(p[2]);
+    why='Step 2: '+v+' × '+sup(p[2])+' → Step 3: '+f(c)+' '+b}
+  return{q,o,ok,why,t,stp};
+}
+
+/* ---------- game state ---------- */
+const LX=[100,180,260];
+function go(w,fresh){
+  S={w,qi:0,score:fresh?0:S.score,cc:fresh?0:S.cc,lives:3,streak:0,shield:0,mult:0,freeze:0,crab:0,time:0,rows:[],lane:1,cx:180,boss:0,bhp:3,gear:0,sd:.8,off:0,msg:'',mt:0,cur:null,fl:0};
+  $('ov').style.display='none';$('tc').style.display='flex';st='play';last=performance.now();
+  say('Welcome to '+WN[w][0]+', Racer! Grab the right gates!',3.5);
+}
+const say=(t,s)=>{S.msg=t;S.mt=s||3};
+const ov=h=>{$('ov').innerHTML=h;$('ov').style.display='flex';$('tc').style.display='none'};
+const RM='<button class="b r" onclick="menu()">RETURN MENU</button>';
+const brand='<p class="br">AHA! PHYSICS</p><p class="mo">'+MOTTO+'</p>';
+function ach(k){if(SV.ach[k])return;SV.ach[k]=1;save();say('🏆 Achievement: '+ACH[k],3.5);sfx.pu()}
+
+function menu(){
+  st='menu';
+  ov('<canvas id="cm" width="64" height="40" style="width:8em;image-rendering:pixelated"></canvas><h1>🚗 PREFIX TURBO RACER</h1><h2>The SI Quantity Dimension Challenge</h2>'+brand+
+  '<button class="b" onclick="intro(0)">START GAME</button><div class="grid"><button class="b s" onclick="tut()">TUTORIAL</button><button class="b s" onclick="wsel()">WORLD SELECT</button><button class="b s" onclick="achs()">ACHIEVEMENTS</button><button class="b s" onclick="about()">ABOUT SI PREFIX</button><button class="b s" onclick="cred()">CREDITS</button><button class="b s" onclick="crt()">CRT: '+(crtOn?'ON':'OFF')+'</button></div>');
+  crab(document.getElementById('cm').getContext('2d'),4,2,5,0);
+}
+function crt(){crtOn=!crtOn;$('crt').style.display=crtOn?'block':'none';menu()}
+function intro(w){
+  ov('<h2>World '+(w+1)+'</h2><h1>'+WN[w][0]+'</h1><h2>'+sup(WN[w][1])+'</h2>'+(w==0?'<p>🦀 UNIT GLITCH has corrupted the Quantity Network! Drive the PREFIX TURBO RACER, steer into the correct gates and restore every dimension.</p>':'<p>🦀 More scrambled gates ahead. Eyes on the exponents!</p>')+
+  '<button class="b" onclick="go('+w+','+(w==0?'true':'false')+')">DRIVE!</button>'+RM);
+}
+function wsel(){ov('<h2>WORLD SELECT</h2><div class="grid">'+WN.map((x,i)=>'<button class="b s" onclick="go('+i+',true)">'+(i+1)+'. '+x[0]+'<br>'+sup(x[1])+(i<SV.maxW?' ✔':'')+'</button>').join('')+'</div>'+RM)}
+function achs(){ov('<h2>ACHIEVEMENTS</h2>'+Object.keys(ACH).map(k=>'<p>'+(SV.ach[k]?'🏆 ':'🔒 ')+ACH[k]+'</p>').join('')+RM)}
+function about(){ov('<h2>ABOUT SI PREFIX</h2><table><tr><th>Prefix</th><th>Sym</th><th>Power</th></tr>'+P.map(p=>'<tr><td>'+p[0]+'</td><td>'+p[1]+'</td><td>'+sup(p[2])+'</td></tr>').join('')+'</table><p>Convert: value × prefix power = base unit.</p>'+RM)}
+function cred(){ov('<h2>CREDITS</h2><p>Game: AHA! PHYSICS</p><p>For SPM Physics KSSM 4531 – SI Quantities and Prefixes</p><p>Mascot: AHA Engineering Crab 🦀</p>'+brand+RM)}
+function tut(){ov('<h2>TUTORIAL</h2><p>◀ ▶ / A D / touch buttons change lane. The car drives itself.</p><p>Drive through the gate with the right answer. Wrong gates and cones cost a life.</p><p>Streaks raise your Gear. Pickups: S shield, x2 score, T time freeze, C crab clears wrong gates.</p><p>Each world ends with a UNIT GLITCH DRONE: answer 3 conversions to destroy it. ESC = menu, P = pause.</p>'+RM)}
+function pause(){if(st!='play')return;st='pause';ov('<h2>PAUSED</h2>'+brand+'<button class="b" onclick="resume()">RESUME</button>'+RM)}
+function resume(){$('ov').style.display='none';$('tc').style.display='flex';st='play';last=performance.now()}
+
+/* ---------- gameplay ---------- */
+function spawnQ(){
+  let t=S.boss?5:[1,3,2,4,5][S.qi%5],q=mk(t,S.w),it=q.o.map((x,i)=>({t:x,ok:i==q.ok}));
+  if(S.crab){it.forEach(i=>{if(!i.ok)i.x=1});S.crab=0}
+  S.rows.push({k:'q',y:-40,it,q});S.cur=q;
+}
+function filler(){
+  let r=Math.random(),l=R(0,2);
+  if(r<.4)S.rows.push({k:'cone',y:-40,l});
+  else if(r<.65)S.rows.push({k:'pu',y:-40,l,p:pick(['S','x2','T','C'])});
+}
+function lose(msg){
+  if(S.shield){S.shield=0;say('🛡 Insight Shield saved you!');sfx.pu();return}
+  S.lives--;S.streak=0;S.gear=0;S.fl=.3;sfx.bad();say(msg);
+  if(S.lives<=0){st='over';ov('<h2>GAME OVER</h2><p>🦀 UNIT GLITCH won this round. Score: '+S.score+'</p>'+brand+'<button class="b" onclick="go('+S.w+',true)">RETRY WORLD</button>'+RM)}
+}
+function right(q){
+  S.streak++;S.gear=Math.min(7,S.streak>>1);S.cc+=q.t>=4?1:0;sfx.ok();
+  S.score+=Math.round(100*(1+S.gear*.2))*(S.mult>0?2:1);
+  let m={5:'SMART DRIVER',10:'PREFIX PRO',20:'DIMENSION MASTER',30:'INSIGHT LEGEND'}[S.streak];
+  say(m?'🦀 '+m+'! '+(S.streak==5?'Turbo Brain Activated!':'Streak '+S.streak):'🦀 Excellent! '+q.why);
+  ach('rookie');if(S.cc>=10)ach('crusher');if(S.score>=5000)ach('king');if(S.streak>=20)ach('guardian');
+  if(S.boss){S.bhp--;if(S.bhp<=0){clearW();return}say('🦀 Direct hit! '+q.why)}
+  else if(++S.qi>=8){S.boss=1;S.bhp=3;say('⚠ UNIT GLITCH DRONE incoming! Convert to damage it!',3.5)}
+}
+function wrong(q){lose(q.t>=4?'🦀 Check the exponent again, Racer! '+q.why:'🦀 Oops! '+q.why);if(!S.boss)S.qi++;if(S.qi>=8&&!S.boss){S.boss=1;S.bhp=3}}
+function clearW(){
+  st='clear';sfx.win();if(S.w==1)ach('nano');if(S.w==2)ach('micro');
+  SV.maxW=Math.max(SV.maxW,S.w+1);save();
+  if(S.w==8){ach('legend');return victory()}
+  ov('<h2>LEVEL COMPLETE!</h2><h1>'+WN[S.w][0]+' restored</h1><p>🦀 "Now THAT is insight!"</p><p>Score: '+S.score+'</p>'+brand+'<button class="b" onclick="intro('+(S.w+1)+')">NEXT WORLD</button>'+RM);
+}
+function victory(){
+  ov('<h2>UNIT GLITCH DEFEATED!</h2><p>🦀 "You did not win by memorising."</p><p>🦀 "You won by understanding."</p><p class="big">NOT BY SIGHT,<br>BUT BY INSIGHT.</p><p class="br">AHA! PHYSICS</p><p>Final score: '+S.score+'</p><button class="b" onclick="wsel()">WORLD SELECT</button>'+RM);
+}
+function update(dt){
+  S.time+=dt;S.off+=dt;S.cx+=(LX[S.lane]-S.cx)*Math.min(1,dt*14);
+  ['mult','freeze','mt','fl'].forEach(k=>{if(S[k]>0)S[k]-=dt});
+  S.sd-=dt;if(S.sd<=0&&!S.rows.some(r=>r.k=='q'))spawnQ();
+  const sp=(110+S.gear*22)*(S.freeze>0?.45:1)*dt;
+  for(const r of S.rows){
+    r.y+=sp;
+    if(!r.done&&r.y>=426){
+      r.done=1;const L=Math.round((S.cx-100)/80);
+      if(r.k=='q'){const i=r.it[L];S.sd=1.1;filler();if(!i.x){i.ok?right(r.q):wrong(r.q)}}
+      else if(r.l==L){
+        if(r.k=='cone')lose('Cone! Steer clear!');
+        else{sfx.pu();const p=r.p;if(p=='S')S.shield=1;if(p=='x2')S.mult=10;if(p=='T')S.freeze=5;
+          if(p=='C'){S.crab=1;S.rows.forEach(q=>{if(q.k=='q'&&!q.done)q.it.forEach(i=>{if(!i.ok)i.x=1})});say('🦀 Crab Booster! Wrong gates cleared.')}
+          else say('Power-up: '+({S:'Insight Shield',x2:'Turbo Multiplier',T:'Time Freeze'})[p])}
+      }
+      if(st!='play')return;
+    }
+  }
+  S.rows=S.rows.filter(r=>r.y<H+40);
+}
+
+/* ---------- drawing ---------- */
+function crab(c,x,y,s,f){
+  const R_=(a,b,w,h,col)=>{c.fillStyle=col;c.fillRect(x+a*s,y+b*s,w*s,h*s)};
+  R_(1,4,2,3,'#ff4a1c');R_(11,4,2,3,'#ff4a1c');R_(0,2+f,2,2,'#ff6a3c');R_(12,2+f,2,2,'#ff6a3c');
+  R_(3,5,8,5,'#ff4a1c');R_(4,4,6,1,'#ff4a1c');
+  for(let i=0;i<3;i++){R_(3+i*3,10+((i+f)%2),1,2,'#c8300c')}
+  R_(4,6,2,2,'#fff');R_(8,6,2,2,'#fff');R_(5,7,1,1,'#000');R_(9,7,1,1,'#000');
+  R_(3,2,8,2,'#ffd400');R_(4,1,6,1,'#ffd400');R_(2,4,10,1,'#e0b000');
+  c.fillStyle='#1a0b3a';c.font='bold '+(s*1.5)+'px monospace';c.fillText('AHA',x+4*s,y+3.6*s);
+}
+function wrap(t,mw){let w=t.split(' '),l=[],c='';for(const x of w){if(X.measureText(c+' '+x).width>mw&&c){l.push(c);c=x}else c=c?c+' '+x:x}l.push(c);return l}
+function txt(t,x,y,px,col,al,mw){X.font='bold '+px+'px "Courier New",monospace';if(mw){while(X.measureText(t).width>mw&&px>6){px--;X.font='bold '+px+'px "Courier New",monospace'}}X.fillStyle=col;X.textAlign=al||'left';X.fillText(t,x,y)}
+function draw(){
+  const g=S.gear||0,t=S.time||0;
+  X.fillStyle=GC[g];X.fillRect(0,0,W,H);
+  for(let i=0;i<40;i++){X.fillStyle='rgba(255,255,255,.6)';X.fillRect((i*97)%W,((i*53+t*15*(1+i%3))%H),2,2)}
+  for(let i=0;i<14;i++){const h=30+(i*37)%50,y=((i*70+t*60*(1+g*.2))%(H+80))-40;
+    X.fillStyle='rgba(0,0,0,.35)';X.fillRect(i%2?305:10,y,45-(i%3)*8,h);X.fillStyle='#ff2bd6';X.fillRect(i%2?305:10,y,45-(i%3)*8,2)}
+  X.fillStyle='#262033';X.fillRect(60,0,240,H);X.fillStyle='#00f0ff';X.fillRect(58,0,3,H);X.fillRect(299,0,3,H);
+  X.fillStyle='#ffd400';const o=(t*(160+g*30))%40;
+  for(let y=-40;y<H;y+=40)for(const x of [138,218])X.fillRect(x,y+o,4,20);
+  if(S.boss){const bx=180+Math.sin(t*2)*60;X.fillStyle='#ff1744';X.fillRect(bx-35,150,70,26);X.fillStyle='#222';X.fillRect(bx-30,156,60,6);X.fillStyle='#fff';X.fillRect(bx-4,164,8,8);X.fillStyle='#ff2bd6';X.fillRect(bx-40,160,8,14);X.fillRect(bx+32,160,8,14);
+    X.fillStyle='#000';X.fillRect(120,184,120,8);X.fillStyle='#00ff6a';X.fillRect(121,185,38*S.bhp,6)}
+  for(const r of S.rows){
+    if(r.k=='q')r.it.forEach((i,n)=>{if(i.x)return;X.fillStyle='#00f0ff';X.fillRect(LX[n]-35,r.y-18,70,36);X.fillStyle='#fff7d6';X.fillRect(LX[n]-35,r.y-18,70,3);X.fillStyle='#ff2bd6';X.fillRect(LX[n]-35,r.y+15,70,3);txt(i.t,LX[n],r.y+5,14,'#1a0b3a','center',64)});
+    else if(r.k=='cone'){const x=LX[r.l];X.fillStyle='#ff8a00';X.beginPath();X.moveTo(x,r.y-18);X.lineTo(x+16,r.y+16);X.lineTo(x-16,r.y+16);X.fill();X.fillStyle='#fff';X.fillRect(x-8,r.y+2,16,4)}
+    else{const x=LX[r.l];X.fillStyle='#ffd400';X.fillRect(x-14,r.y-14,28,28);X.fillStyle='#ff2bd6';X.fillRect(x-14,r.y-14,28,3);txt(r.p,x,r.y+5,14,'#1a0b3a','center')}
+  }
+  // car
+  const x=S.cx,y=440;
+  for(let i=0;i<=g;i++){X.fillStyle=i%2?'#ffd400':'#ff4a1c';X.fillRect(x-8+(i%2)*4,y+22,8-(i%3),8+i*3+(Math.random()*6|0))}
+  X.fillStyle='#111';X.fillRect(x-17,y-14,6,10);X.fillRect(x+11,y-14,6,10);X.fillRect(x-17,y+8,6,10);X.fillRect(x+11,y+8,6,10);
+  X.fillStyle='#ff2bd6';X.fillRect(x-12,y-22,24,46);X.fillStyle='#ffd400';X.fillRect(x-3,y-22,6,46);X.fillStyle='#00f0ff';X.fillRect(x-9,y-8,18,9);X.fillStyle='#1a0b3a';X.fillRect(x-9,y+4,18,3);
+  if(S.shield){X.strokeStyle='#00f0ff';X.lineWidth=3;X.beginPath();X.arc(x,y,32,0,7);X.stroke()}
+  if(S.fl>0){X.fillStyle='rgba(255,0,60,.3)';X.fillRect(0,0,W,H)}
+  // HUD
+  X.fillStyle='rgba(7,3,26,.85)';X.fillRect(0,0,W,66);
+  txt('SCORE '+S.score,6,13,11,'#fff7d6');txt('WORLD '+(S.w+1)+'/9',W/2,13,11,'#00f0ff','center');txt('TIME '+(S.time|0),W-6,13,11,'#fff7d6','right');
+  txt('♥'.repeat(Math.max(0,S.lives)),6,29,12,'#ff2bd6');txt('COMBO '+S.streak,W/2,29,11,'#ffd400','center');txt(GN[g]+' GEAR',W-6,29,11,'#00f0ff','right');
+  if(S.cur)txt((S.boss?'BOSS: ':'')+S.cur.q,W/2,52,18,'#ffd400','center',W-12);
+  if(S.boss&&S.cur&&S.cur.stp)txt(S.cur.stp,W/2,81,11,'#00f0ff','center');
+  const pu=[S.shield?'🛡':'',S.mult>0?'x2 '+(S.mult|0)+'s':'',S.freeze>0?'FREEZE':'',S.crab?'CRAB':''].filter(Boolean).join(' ');
+  if(pu)txt(pu,W/2,H-60,11,'#ffd400','center');
+  if(S.mt>0){X.font='bold 11px "Courier New",monospace';const L=wrap(S.msg,236),h=L.length*13+10;
+    X.fillStyle='#fff7d6';X.fillRect(54,88,246,h);X.fillStyle='#ff2bd6';X.fillRect(54,88+h,246,3);
+    L.forEach((l,i)=>txt(l,60,102+i*13,11,'#1a0b3a'));crab(X,6,92,3,(t*6|0)%2)}
+}
+function loop(n){
+  const dt=Math.min(.05,(n-last)/1000);last=n;
+  if(st=='play'){update(dt)}
+  if(st=='play'||st=='pause'||st=='over'||st=='clear')draw();
+  else{X.fillStyle='#0b0620';X.fillRect(0,0,W,H)}
+  requestAnimationFrame(loop);
+}
+/* ---------- input ---------- */
+const mv=d=>{if(st=='play')S.lane=Math.max(0,Math.min(2,S.lane+d));beep(300,.05,'square',.02)};
+document.addEventListener('keydown',e=>{
+  if(['ArrowLeft','a','A'].includes(e.key)){mv(-1);e.preventDefault()}
+  else if(['ArrowRight','d','D'].includes(e.key)){mv(1);e.preventDefault()}
+  else if(e.key=='Escape')menu();
+  else if(e.key=='p'||e.key=='P')st=='pause'?resume():pause();
+});
+$('bl').addEventListener('pointerdown',e=>{e.preventDefault();mv(-1)});
+$('br').addEventListener('pointerdown',e=>{e.preventDefault();mv(1)});
+C.addEventListener('pointerdown',e=>{const r=C.getBoundingClientRect();mv(e.clientX<r.left+r.width/2?-1:1)});
+menu();requestAnimationFrame(n=>{last=n;loop(n)});
+</script></body></html>
